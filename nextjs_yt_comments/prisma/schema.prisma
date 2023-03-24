@@ -1,0 +1,22 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Comment {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  videoId     String
+  text        String
+  authorName  String
+  authorUrl   String
+  likeCount   Int
+  publishedAt DateTime
+  updatedAt   DateTime @updatedAt
+}

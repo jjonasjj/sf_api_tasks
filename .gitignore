@@ -1,0 +1,6 @@
+/console_yt_monitoring/node_modules
+/console_yt_monitoring/.env*.local
+/nextjs_yt_comments/node_modules
+/nextjs_yt_comments/.next/
+/nextjs_yt_comments/.env*.local
+
