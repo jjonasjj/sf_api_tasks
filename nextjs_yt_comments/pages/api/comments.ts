@@ -15,8 +15,17 @@ async function saveComment(comment: any) {
 
 // calls to database via prisma to fetch comments by video id
 async function getCommentsByVideoId(videoId: string) {
+
+  // current time, and 24 hrs ago date
+  const now = new Date();
+  const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const comments = await prisma.comment.findMany({
-    where: { videoId },
+    where: {
+      videoId,
+      updatedAt: {
+        gte: twentyFourHoursAgo,
+      },
+    },
     orderBy: { publishedAt: 'desc' },
     take: 20,
   })
@@ -58,42 +67,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         continue
       }
 
-      // attempt to get comments from youtube api
-      const response = await youtube.commentThreads.list({
-        auth: API_KEY,
-        part: ['id', 'snippet', 'replies'],
-        videoId,
-        maxResults: 20,
-      })
+      if (comments.length === 0) {
 
-      const fetchedComments = response.data.items?.map((item) => {
-
-        // for every item, get author, channelurl, publish date, text, likecount
-        const { authorDisplayName, authorChannelUrl, publishedAt } =
-          item.snippet?.topLevelComment?.snippet || {}
-
-        // instead of using the raw response.data.items, make more simple object out of received data
-        return {
+        // attempt to get comments from youtube api
+        const response = await youtube.commentThreads.list({
+          auth: API_KEY,
+          part: ['id', 'snippet', 'replies'],
           videoId,
-          text: item.snippet?.topLevelComment?.snippet?.textDisplay || '',
-          authorName: authorDisplayName || '',
-          authorUrl: authorChannelUrl || '',
-          likeCount: item.snippet?.topLevelComment?.snippet?.likeCount || 0,
-          publishedAt,
+          maxResults: 20,
+        })
+
+        const fetchedComments = response.data.items?.map((item) => {
+
+          // for every item, get author, channelurl, publish date, text, likecount
+          const { authorDisplayName, authorChannelUrl, publishedAt } =
+            item.snippet?.topLevelComment?.snippet || {}
+
+          // instead of using the raw response.data.items, make more simple object out of received data
+          return {
+            videoId,
+            text: item.snippet?.topLevelComment?.snippet?.textDisplay || '',
+            authorName: authorDisplayName || '',
+            authorUrl: authorChannelUrl || '',
+            likeCount: item.snippet?.topLevelComment?.snippet?.likeCount || 0,
+            publishedAt,
+          }
+        })
+
+        // save fetched comments from the api to the DB
+        const savedComments = []
+        for (const comment of fetchedComments || []) {
+          const savedComment = await saveComment(comment)
+          savedComments.push(savedComment)
         }
-      })
 
-      // save fetched comments from the api to the DB
-      const savedComments = []
-      for (const comment of fetchedComments || []) {
-        const savedComment = await saveComment(comment)
-        savedComments.push(savedComment)
+        // push videoid + comments object to general comments array.
+        comments.push({
+          comments: savedComments,
+        })
       }
-
-      // push videoid + comments object to general comments array.
-      comments.push({
-        comments: savedComments,
-      })
     }
 
     // return general comments array
